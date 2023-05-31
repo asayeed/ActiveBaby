@@ -8,11 +8,8 @@ import numpy as np
 from operator import itemgetter
 from nltk.lm.preprocessing import padded_everygram_pipeline
 
-class AbstractSemanticSpace:
+class AbstractSurprisalSpace:
     def __init__(self, dims):
-        if isinstance(self, AbstractSurprisalSpace):
-            raise TypeError
-
         self.dims = dims
 
     def fit(self, sequences):
