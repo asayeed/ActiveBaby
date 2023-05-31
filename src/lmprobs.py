@@ -36,6 +36,6 @@ class TrigramSurprisalSpace(AbstractSurprisalSpace):
 
     def surprisalizer_(self, sentence):
         trisent = trigrams(x)
-        return [-self.lm.logscore(x[2], [x[0], x[1]]) for x in trisent]
+        return resize(np.array([-self.lm.logscore(x[2], [x[0], x[1]]) for x in trisent]), self.dims)
 
 
