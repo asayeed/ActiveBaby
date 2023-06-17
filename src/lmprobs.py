@@ -8,18 +8,24 @@ import numpy as np
 from operator import itemgetter
 from nltk.lm.preprocessing import padded_everygram_pipeline
 import pickle
-
+from datetime import datetime
 
 class AbstractSurprisalSpace:
     def __init__(self, dims):
         self.dims = dims
 
     def fit(self, sequences):
+        self.sequences = sequences
         self.train(sequences)
 
         self.surprisalvecs = [self.surprisalizer_(x) for x in sequences]
         self.nnfinder = KDTree(self.surprisalvecs)
 
+    def reset_dims(self, newdims):
+        self.dims = newdims
+        self.surprisalvecs = [self.surprisalizer_(x) for x in self.sequences]
+        self.nnfinder = KDTree(self.surprisalvecs)
+        
     def find_index(self, vec_index, k=5):
         dists, indices = self.nnfinder.query(self.surprisalvecs[vec_index].reshape(1,-1),
                                       k=k)
@@ -48,8 +54,16 @@ if __name__ == "__main__":
     itemfile = open("../babylm_10M_tokens.txt", "r")
     tokens = [x[:-1].split(",") for x in itemfile]
     #print(tokens[:5000])
-    tss.fit(tokens[:5000])
 
+
+    now = datetime.now()
+    current_time = now.strftime("%H:%M:%S")
+    print("Fit Starting Time =", current_time)
+    tss.fit(tokens[:5000])
+    now = datetime.now()
+    current_time = now.strftime("%H:%M:%S")
+    print("Fit Stopping Time =", current_time)
+    
     distances, indices, vectors = tss.find_index(3999)
 
     print("We get distances {} at indices {}.\nThe vectors are:\n{}".format(distances, indices, vectors))
@@ -70,4 +84,9 @@ if __name__ == "__main__":
 
     print("We get distances {} at indices {}.\nThe vectors are:\n{}".format(distances, indices, vectors))
 
+    loadtss.reset_dims(10)
+    
+    distances, indices, vectors = loadtss.find_index(1111)
+
+    print("We get distances {} at indices {}.\nThe vectors are:\n{}".format(distances, indices, vectors))
     
