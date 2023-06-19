@@ -32,6 +32,13 @@ class AbstractSurprisalSpace:
 
         return list(dists[0]), list(indices[0]), itemgetter(*list(indices[0]))(self.surprisalvecs)
     
+    # Remove from the stored vectors
+    def remove_from_space(self, to_remove):        
+        for index in sorted(to_remove, reverse=True):
+            del self.surprisalvecs[index] #make sure this behaves as a reference
+    
+        self.nnfinder = KDTree(self.surprisalvecs)
+        
 class TrigramSurprisalSpace(AbstractSurprisalSpace):
     def __init__(self, dims):
         super(TrigramSurprisalSpace, self).__init__(dims)
@@ -45,13 +52,16 @@ class TrigramSurprisalSpace(AbstractSurprisalSpace):
     def surprisalizer_(self, sentence):
         trisent = list(trigrams(sentence))
         surps = np.array([-self.lm.logscore(x[2], [x[0], x[1]]) for x in trisent])
-        resized = resize(surps, (self.dims,))
+        try:
+            resized = resize(surps, (self.dims,))
+        except ValueError:
+            print("sentence {} trisent {} surps {}".format(sentence, trisent, surps))
         return resized
 
 
 if __name__ == "__main__":
     tss = TrigramSurprisalSpace(7)
-    itemfile = open("../babylm_10M_tokens.txt", "r")
+    itemfile = open("/root/xhong/babylm/dataset/babylm_10M_sent_tokens.txt", "r")
     tokens = [x[:-1].split(",") for x in itemfile]
     #print(tokens[:5000])
 
@@ -59,7 +69,7 @@ if __name__ == "__main__":
     now = datetime.now()
     current_time = now.strftime("%H:%M:%S")
     print("Fit Starting Time =", current_time)
-    tss.fit(tokens[:5000])
+    tss.fit(tokens)
     now = datetime.now()
     current_time = now.strftime("%H:%M:%S")
     print("Fit Stopping Time =", current_time)

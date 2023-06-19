@@ -95,33 +95,95 @@ data_collator = DataCollatorForLanguageModeling(
 # ### Finally, we are all set to initialize our Trainer
 from transformers import Trainer, TrainingArguments
 
-dataset = LineByLineTextDataset(
-    tokenizer=tokenizer,
-    file_path="../dataset/babylm_10M_sents.txt",
-    block_size=512,
-)
+from lmprobs import TrigramSurprisalSpace
+import pickle
+# We pick out an random inital pool with uniform probability in a temporary directory of n% of the data.
 
-training_args = TrainingArguments(
-    output_dir="../ckpt/ABRoBERTa_10M_10ep",
-    overwrite_output_dir=True,
-    num_train_epochs=10,
-    per_gpu_train_batch_size=32,
-    save_steps=10_000,
-    save_total_limit=2,
-    prediction_loss_only=True,
-)
+tss = pickle.load(open("tss.pkl", "r"))
 
-trainer = Trainer(
-    model=model,
-    args=training_args,
-    data_collator=data_collator,
-    train_dataset=dataset,
-)
+all_sents = open("../dataset/babylm_10M_sents.txt", "r").readlines()
 
-# ### Start training
-trainer.train()
+import random
 
-# #### 🎉 Save final model (+ tokenizer + config) to disk
-trainer.save_model("../ckpt/ABRoBERTa_10M_10ep/final")
+def sample_pool_random(all_sentences, n):
+    selected = random.sample(list(range(len(all_sentences))), n)
+    
+    corresponding_sents = [all_sentences[x] for x in range(len(all_sentences)) if x in selected]    
+
+    for index in sorted(selected, reverse=True):
+        del all_sentences[index] #make sure this behaves as a reference
+
+    return selected, corresponding_sents
+
+def sample_pool_from_selected(all_sentences, selected): 
+    corresponding_sents = [all_sentences[x] for x in range(len(all_sentences)) if x in selected] 
+    
+    for index in sorted(selected, reverse=True):
+        del all_sentences[index] #make sure this behaves as a reference
+
+    return corresponding_sents
 
 
+INITIAL_SAMPLE = 100000
+SAMPLE_SIZE = 500
+
+initial_indices, initial_sents = sample_pool_random(pool_sents, all_sents, INITIAL_SAMPLE)
+tss.remove_from_space(initial_indices)
+
+TRAININGDIR = "../dataset/trainingsets/"
+training_filename = "../dataset/trainingsets/0.txt"
+training_file = open(training_filename, "w")
+for x in initial_sents:
+    trainingfile.write(x)
+training_file.close()
+
+iteration = 0
+current_sents = initial_sents
+while convergence_criterion_not_met: # another miracle        
+    dataset = LineByLineTextDataset(
+        tokenizer=tokenizer,
+        file_path=training_filename, #REPLACE WITH CURRENT TRAINING SET
+        block_size=512,
+    )
+
+    training_args = TrainingArguments(
+        output_dir="../ckpt/ABRoBERTa_10M_10ep",
+        overwrite_output_dir=True,
+        num_train_epochs=10,
+        per_gpu_train_batch_size=32,
+        save_steps=10_000,
+        save_total_limit=2,
+        prediction_loss_only=True,
+    )
+
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        data_collator=data_collator,
+        train_dataset=dataset,
+    )
+
+    # ### Start training
+    trainer.train()
+
+    # #### 🎉 Save final model (+ tokenizer + config) to disk
+    trainer.save_model("../ckpt/ABRoBERTa_10M_10ep/final")
+
+    # Assume a miracle where we know the specific index of the highest perplexity sentence from
+    # the training pool.
+    # That miracle we will call most_confused_index
+
+    _, indices, _ = tss.find_index(most_confused_index, k=500)
+    # Take things out of the space.
+    tss.remove_from_space(indices)
+    additional_sents = sample_pool_from_selected(pool_sents, all_sents, indices)
+    
+    iteration += 1
+    current_sents += additional_sents
+    training_filename = f'{TRAININGDIR}/{iteration}.txt'
+    training_file = open(training_filename, "w")
+    for sent in current_sents:
+        training_file.write(sent)
+    training_file.close()
+
+    
