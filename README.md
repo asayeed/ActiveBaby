@@ -8,7 +8,7 @@ Repo for BabyLM challenge
 
 ### BASELINE
 
-1. Skip-gram over entire corpus.
+1. RoBERTa over entire corpus.
 
 2. Longformer over entire corpus.
 
@@ -16,7 +16,7 @@ Repo for BabyLM challenge
 
 ### FANCIER
 
-1. Skip-gram over entire corpus.
+1. RoBERTa over entire corpus.
 
 2. Trigram (?) surprisals over entire corpus.
 
@@ -37,6 +37,11 @@ Repo for BabyLM challenge
 8. Goto 2.
 
 9. Evaluation metrics.
+
+
+### Monitor of training process
+https://wandb.ai/tony-xudong-hong/huggingface/runs/v9l8f6mg/overview?workspace=user-tony-xudong-hong
+
 
 ## Timeline
 
