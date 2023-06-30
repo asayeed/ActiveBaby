@@ -20,8 +20,10 @@ import matplotlib.pyplot as plt
 import torch
 import transformers
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+from evaluate import load
 
 # ## 1. Train a language model from scratch
+
 # 
 # **Update:** This section follows along the [`run_language_modeling.py`](https://github.com/huggingface/transformers/blob/master/examples/legacy/run_language_modeling.py) script, using our new [`Trainer`](https://github.com/huggingface/transformers/blob/master/src/transformers/trainer.py) directly. Feel free to pick the approach you like best.
 # 
@@ -105,7 +107,8 @@ all_sents = open("../dataset/babylm_10M_sents.txt", "r").readlines()
 
 import random
 
-def sample_pool_random(all_sentences, n):
+def sample_pool_random(all_sentences, n):.
+    
     selected = random.sample(list(range(len(all_sentences))), n)
     
     corresponding_sents = [all_sentences[x] for x in range(len(all_sentences)) if x in selected]    
@@ -116,6 +119,7 @@ def sample_pool_random(all_sentences, n):
     return selected, corresponding_sents
 
 def sample_pool_from_selected(all_sentences, selected): 
+    
     corresponding_sents = [all_sentences[x] for x in range(len(all_sentences)) if x in selected] 
     
     for index in sorted(selected, reverse=True):
@@ -139,6 +143,7 @@ training_file.close()
 
 iteration = 0
 current_sents = initial_sents
+convergence_criterion_not_met = True
 while convergence_criterion_not_met: # another miracle        
     dataset = LineByLineTextDataset(
         tokenizer=tokenizer,
@@ -167,13 +172,23 @@ while convergence_criterion_not_met: # another miracle
     trainer.train()
 
     # #### 🎉 Save final model (+ tokenizer + config) to disk
-    trainer.save_model("../ckpt/ABRoBERTa_10M_10ep/final")
+    trainer.save_model("../ckpt/ABRoBERTa_10M_10ep/final") # TODO: rename checkpoints per iteration
 
+    # TODO:
     # Assume a miracle where we know the specific index of the highest perplexity sentence from
-    # the training pool.
+    # the training set.    
     # That miracle we will call most_confused_index
+    # I.e., for every sentence in the training set, we get the perplexity according to the trained model.
+    # find the index of the maximum.
+    perplexity = evaluate.load("perplexity", module_type="metric")
+    
+    input_texts = dataset
+    results = perplexity.compute(model_id='gpt2',
+                                 add_start_token=False,
+                                 predictions=input_texts)
 
-    _, indices, _ = tss.find_index(most_confused_index, k=500)
+    
+    _, indices, _ = tss.find_index(most_confused_index, k=500) #TODO: k is a hyperparameter
     # Take things out of the space.
     tss.remove_from_space(indices)
     additional_sents = sample_pool_from_selected(pool_sents, all_sents, indices)
@@ -185,5 +200,8 @@ while convergence_criterion_not_met: # another miracle
     for sent in current_sents:
         training_file.write(sent)
     training_file.close()
+    
+    if iteration > 5:
+        convergence_criterion_not_met = False
 
     

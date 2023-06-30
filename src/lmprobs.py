@@ -10,6 +10,7 @@ from nltk.lm.preprocessing import padded_everygram_pipeline
 import pickle
 from datetime import datetime
 
+
 class AbstractSurprisalSpace:
     def __init__(self, dims):
         self.dims = dims
@@ -19,11 +20,14 @@ class AbstractSurprisalSpace:
         self.train(sequences)
 
         self.surprisalvecs = [self.surprisalizer_(x) for x in sequences]
+        self.currentsurprisalvecs = self.surprisalvecs.copy()
         self.nnfinder = KDTree(self.surprisalvecs)
 
     def reset_dims(self, newdims):
         self.dims = newdims
         self.surprisalvecs = [self.surprisalizer_(x) for x in self.sequences]
+        self.currentsurprisalvecs = self.surprisalvecs.copy()
+        # If we reset the dimensionality, we reset the whole space back to the full pool.
         self.nnfinder = KDTree(self.surprisalvecs)
         
     def find_index(self, vec_index, k=5):
@@ -35,9 +39,9 @@ class AbstractSurprisalSpace:
     # Remove from the stored vectors
     def remove_from_space(self, to_remove):        
         for index in sorted(to_remove, reverse=True):
-            del self.surprisalvecs[index] #make sure this behaves as a reference
+            del self.currentsurprisalvecs[index] #make sure this behaves as a reference
     
-        self.nnfinder = KDTree(self.surprisalvecs)
+        self.nnfinder = KDTree(self.currentsurprisalvecs)
         
 class TrigramSurprisalSpace(AbstractSurprisalSpace):
     def __init__(self, dims):
@@ -69,7 +73,7 @@ if __name__ == "__main__":
     now = datetime.now()
     current_time = now.strftime("%H:%M:%S")
     print("Fit Starting Time =", current_time)
-    tss.fit(tokens)
+    tss.fit(tokens[:5000])
     now = datetime.now()
     current_time = now.strftime("%H:%M:%S")
     print("Fit Stopping Time =", current_time)
@@ -98,5 +102,9 @@ if __name__ == "__main__":
     
     distances, indices, vectors = loadtss.find_index(1111)
 
+    print("We get distances {} at indices {}.\nThe vectors are:\n{}".format(distances, indices, vectors))
+    
+    loadtss.remove_from_space([20,500,550,1024,2048,3333])
+    distances, indices, vectors = loadtss.find_index(1024)
     print("We get distances {} at indices {}.\nThe vectors are:\n{}".format(distances, indices, vectors))
     
