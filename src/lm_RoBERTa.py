@@ -20,7 +20,6 @@ import matplotlib.pyplot as plt
 import torch
 import transformers
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
-from evaluate import load
 
 # ## 1. Train a language model from scratch
 
@@ -107,31 +106,29 @@ all_sents = open("../dataset/babylm_10M_sents.txt", "r").readlines()
 
 import random
 
-def sample_pool_random(all_sentences, n):.
-    
+def sample_pool_random(all_sentences, n):    
     selected = random.sample(list(range(len(all_sentences))), n)
+
+    sent_array = np.array(all_sentences)
+    corresponding_sents = list(sent_array[selected])
+
+    new_all = list(np.delete(sent_array, selected))
     
-    corresponding_sents = [all_sentences[x] for x in range(len(all_sentences)) if x in selected]    
-
-    for index in sorted(selected, reverse=True):
-        del all_sentences[index] #make sure this behaves as a reference
-
-    return selected, corresponding_sents
+    return selected, corresponding_sents, new_all
 
 def sample_pool_from_selected(all_sentences, selected): 
-    
-    corresponding_sents = [all_sentences[x] for x in range(len(all_sentences)) if x in selected] 
-    
-    for index in sorted(selected, reverse=True):
-        del all_sentences[index] #make sure this behaves as a reference
+    sent_array = np.array(all_sentences)
+    corresponding_sents = list(sent_array[selected])
 
-    return corresponding_sents
-
+    new_all = list(np.delete(sent_array, selected))
+    
+    return corresponding_sents, new_all
 
 INITIAL_SAMPLE = 100000
 SAMPLE_SIZE = 500
 
-initial_indices, initial_sents = sample_pool_random(pool_sents, all_sents, INITIAL_SAMPLE)
+initial_indices, initial_sents, all_sents = sample_pool_random(all_sents, INITIAL_SAMPLE)
+print(f"Got {initial_indices[0]} which is {initial_sents[0]}")
 tss.remove_from_space(initial_indices)
 
 TRAININGDIR = "../dataset/trainingsets/"
@@ -180,18 +177,20 @@ while convergence_criterion_not_met: # another miracle
     # That miracle we will call most_confused_index
     # I.e., for every sentence in the training set, we get the perplexity according to the trained model.
     # find the index of the maximum.
-    perplexity = evaluate.load("perplexity", module_type="metric")
     
-    input_texts = dataset
-    results = perplexity.compute(model_id='gpt2',
-                                 add_start_token=False,
-                                 predictions=input_texts)
-
     
+    with torch.no_grad():
+        outputs = model(input_ids, labels=target_ids)
+        # loss is calculated using CrossEntropyLoss which averages over valid labels
+        # N.B. the model only calculates loss over trg_len - 1 labels, because it internally shifts the labels
+        # to the left by 1.
+        neg_log_likelihood = outputs.loss
+        
+        
     _, indices, _ = tss.find_index(most_confused_index, k=500) #TODO: k is a hyperparameter
     # Take things out of the space.
     tss.remove_from_space(indices)
-    additional_sents = sample_pool_from_selected(pool_sents, all_sents, indices)
+    additional_sents, all_sents = sample_pool_from_selected(all_sents, indices)
     
     iteration += 1
     current_sents += additional_sents
