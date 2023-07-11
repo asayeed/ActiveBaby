@@ -37,8 +37,10 @@ class AbstractSurprisalSpace:
         return list(dists[0]), list(indices[0]), itemgetter(*list(indices[0]))(self.surprisalvecs)
     
     # Remove from the stored vectors
-    def remove_from_space(self, to_remove):        
+    def remove_from_space(self, to_remove):
+        print(f'len {len(self.currentsurprisalvecs)}')
         for index in sorted(to_remove, reverse=True):
+            #print(f'removing: {index}')
             del self.currentsurprisalvecs[index] #make sure this behaves as a reference
     
         self.nnfinder = KDTree(self.currentsurprisalvecs)
@@ -67,13 +69,15 @@ if __name__ == "__main__":
     tss = TrigramSurprisalSpace(7)
     itemfile = open("/root/xhong/babylm/dataset/babylm_10M_sent_tokens.txt", "r")
     tokens = [x[:-1].split(",") for x in itemfile]
+    print(f'orig tokens {len(tokens)}')
+    #sys.exit(0)
     #print(tokens[:5000])
 
 
     now = datetime.now()
     current_time = now.strftime("%H:%M:%S")
     print("Fit Starting Time =", current_time)
-    tss.fit(tokens[:5000])
+    tss.fit(tokens)
     now = datetime.now()
     current_time = now.strftime("%H:%M:%S")
     print("Fit Stopping Time =", current_time)
