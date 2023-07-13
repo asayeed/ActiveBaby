@@ -11,6 +11,8 @@ import time
 from os.path import join as osj
 from pathlib import Path
 from collections import defaultdict
+import random
+import pickle
 
 import nltk
 import pandas as pd
@@ -20,6 +22,11 @@ import matplotlib.pyplot as plt
 import torch
 import transformers
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+from transformers import Trainer, TrainingArguments
+from datasets import Dataset
+
+from config import default_args
+from lmprobs import TrigramSurprisalSpace
 
 # ## 1. Train a language model from scratch
 
@@ -64,7 +71,7 @@ config = RobertaConfig(
 # Now let's re-create our tokenizer in transformers
 from transformers import RobertaTokenizerFast
 
-tokenizer = RobertaTokenizerFast.from_pretrained("../tokenizer/ABByteLevelBPE", max_len=512)
+tokenizer = RobertaTokenizerFast.from_pretrained(default_args['tokenizer_path'], max_len=512)
 
 # Finally let's initialize our model.
 # 
@@ -100,11 +107,26 @@ from lmprobs import TrigramSurprisalSpace
 import pickle
 # We pick out an random inital pool with uniform probability in a temporary directory of n% of the data.
 
-tss = pickle.load(open("tss.pkl", "r"))
+tss = pickle.load(open(default_args['tss_path'], "r"))
+# all_sents = open(default_args['train_data_path'], "r").readlines()
+train_data_df = pd.read_csv(default_args['train_data_path'])
 
-all_sents = open("../dataset/babylm_10M_sents.txt", "r").readlines()
+INITIAL_SAMPLE = 10000
+SAMPLE_SIZE = 500
+encoder_max_length = 512
+batch_size = 1
 
-import random
+def process_data_to_model_inputs(batch):
+    # tokenize the inputs and labels
+    inputs = tokenizer(
+        batch["line"],
+        padding="max_length",
+        truncation=True,
+        max_length=encoder_max_length,
+    )
+    batch["input_ids"] = inputs.input_ids
+    batch["attention_mask"] = inputs.attention_mask
+    return batch
 
 def sample_pool_random(all_sentences, n):    
     selected = random.sample(list(range(len(all_sentences))), n)
@@ -124,35 +146,43 @@ def sample_pool_from_selected(all_sentences, selected):
     
     return corresponding_sents, new_all
 
-INITIAL_SAMPLE = 100000
-SAMPLE_SIZE = 500
-
 initial_indices, initial_sents, all_sents = sample_pool_random(all_sents, INITIAL_SAMPLE)
 print(f"Got {initial_indices[0]} which is {initial_sents[0]}")
 tss.remove_from_space(initial_indices)
 
-TRAININGDIR = "../dataset/trainingsets/"
-training_filename = "../dataset/trainingsets/0.txt"
-training_file = open(training_filename, "w")
-for x in initial_sents:
-    trainingfile.write(x)
-training_file.close()
+# TRAININGDIR = "../dataset/trainingsets/"
+# training_filename = "../dataset/trainingsets/0.txt"
+# training_file = open(training_filename, "w")
+# for x in initial_sents:
+#     trainingfile.write(x)
+# training_file.close()
+
+sampled_train_data_df = train_data_df.loc[initial_indices,:]
 
 iteration = 0
 current_sents = initial_sents
 convergence_criterion_not_met = True
 while convergence_criterion_not_met: # another miracle        
-    dataset = LineByLineTextDataset(
-        tokenizer=tokenizer,
-        file_path=training_filename, #REPLACE WITH CURRENT TRAINING SET
-        block_size=512,
+    # dataset = LineByLineTextDataset(
+    #     tokenizer=tokenizer,
+    #     file_path=training_filename, #REPLACE WITH CURRENT TRAINING SET
+    #     block_size=512,
+    # )
+    dataset = Dataset.from_pandas(sampled_train_data_df)
+    
+    # map train data
+    train_set = dataset.map(
+        process_data_to_model_inputs,
+        batched=True,
+        batch_size=batch_size,
+        remove_columns=['Unnamed: 0', 'line_idx', 'token'],
     )
 
     training_args = TrainingArguments(
         output_dir="../ckpt/ABRoBERTa_10M_10ep",
         overwrite_output_dir=True,
         num_train_epochs=10,
-        per_gpu_train_batch_size=32,
+        per_device_train_batch_size=8,
         save_steps=10_000,
         save_total_limit=2,
         prediction_loss_only=True,
@@ -177,16 +207,35 @@ while convergence_criterion_not_met: # another miracle
     # That miracle we will call most_confused_index
     # I.e., for every sentence in the training set, we get the perplexity according to the trained model.
     # find the index of the maximum.
-    
-    
+    sampled_indices = np.random.choice(len(train_data_df), SAMPLE_SIZE)
+    surprisal_by_group = []
     with torch.no_grad():
-        outputs = model(input_ids, labels=target_ids)
-        # loss is calculated using CrossEntropyLoss which averages over valid labels
-        # N.B. the model only calculates loss over trg_len - 1 labels, because it internally shifts the labels
-        # to the left by 1.
-        neg_log_likelihood = outputs.loss
+        for idx in tqdm(sampled_indices):
+            line_idx = train_data_df.loc[idx, 'line_idx']
+            tokens = train_data_df.loc[idx, 'line']
+
+            # Tokenize the sentences and convert to tensor
+            inputs = tokenizer(
+                tokens,  
+                padding="max_length", 
+                truncation=True,
+                max_length=encoder_max_length,
+                return_tensors='pt').to(device)
+
+            # Perform a forward pass through the model
+            outputs = model(**inputs, labels=inputs['input_ids'])
+
+            # The first output is the Cross Entropy loss, calculated per example in the batch
+            # Surprisal is the negative log-likelihood, which corresponds to the loss here.
+            surprisals = outputs.loss.tolist()
+            
+            surprisal_by_group.append(surprisals)
+        surprisal_array = np.array(surprisal_by_group)
+        max_surprisal_idx = surprisal_array.argmax()
+        most_confused_index = sampled_indices[max_surprisal_idx]
         
-        
+        print('most_confused_index', most_confused_index)
+
     _, indices, _ = tss.find_index(most_confused_index, k=500) #TODO: k is a hyperparameter
     # Take things out of the space.
     tss.remove_from_space(indices)
@@ -194,11 +243,7 @@ while convergence_criterion_not_met: # another miracle
     
     iteration += 1
     current_sents += additional_sents
-    training_filename = f'{TRAININGDIR}/{iteration}.txt'
-    training_file = open(training_filename, "w")
-    for sent in current_sents:
-        training_file.write(sent)
-    training_file.close()
+    sampled_train_data_df = train_data_df.loc[indices,:]
     
     if iteration > 5:
         convergence_criterion_not_met = False
