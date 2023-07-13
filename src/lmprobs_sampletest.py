@@ -24,15 +24,18 @@ from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 from lmprobs import TrigramSurprisalSpace
 import pickle
+
+from config import default_args
+
 # We pick out an random inital pool with uniform probability in a temporary directory of n% of the data.
 
-tss = pickle.load(open("tss.pkl", "rb"))
+tss = pickle.load(open(default_args['tss_path'], "rb"))
 
-all_sents = open("../../xhong/babylm/dataset/babylm_10M_sents.txt", "r").readlines()
+all_sents = open(default_args['train_data_path'], "r").readlines()
 
 import random
 
-def sample_pool_random(all_sentences, n):    
+def sample_pool_random(all_sentences, n):
     selected = random.sample(list(range(len(all_sentences))), n)
 
     sent_array = np.array(all_sentences)
@@ -50,8 +53,8 @@ def sample_pool_from_selected(all_sentences, selected):
     
     return selected, corresponding_sents, new_all
 
-INITIAL_SAMPLE = 100000
-SAMPLE_SIZE = 500
+INITIAL_SAMPLE = 10000
+SAMPLE_SIZE = 100
 
 initial_indices, initial_sents, all_sents = sample_pool_random(all_sents, INITIAL_SAMPLE)
 print(f"Got {initial_indices[0]} which is {initial_sents[0]}")

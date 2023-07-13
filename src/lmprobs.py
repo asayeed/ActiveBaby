@@ -10,6 +10,7 @@ from nltk.lm.preprocessing import padded_everygram_pipeline
 import pickle
 from datetime import datetime
 
+from config import default_args
 
 class AbstractSurprisalSpace:
     def __init__(self, dims):
@@ -65,7 +66,8 @@ class TrigramSurprisalSpace(AbstractSurprisalSpace):
 
 if __name__ == "__main__":
     tss = TrigramSurprisalSpace(7)
-    itemfile = open("/root/xhong/babylm/dataset/babylm_10M_sent_tokens.txt", "r")
+    
+    itemfile = open(default_args['train_data_path'], "r")
     tokens = [x[:-1].split(",") for x in itemfile]
     #print(tokens[:5000])
 
@@ -73,7 +75,7 @@ if __name__ == "__main__":
     now = datetime.now()
     current_time = now.strftime("%H:%M:%S")
     print("Fit Starting Time =", current_time)
-    tss.fit(tokens[:5000])
+    tss.fit(tokens)
     now = datetime.now()
     current_time = now.strftime("%H:%M:%S")
     print("Fit Stopping Time =", current_time)
@@ -86,9 +88,9 @@ if __name__ == "__main__":
 
     print("We get distances {} at indices {}.\nThe vectors are:\n{}".format(distances, indices, vectors))
     
-    pickle.dump(tss, open("tss.pkl", "wb"))
+    pickle.dump(tss, open(default_args['tss_path'], "wb"))
 
-    loadtss = pickle.load(open("tss.pkl", "rb"))
+    loadtss = pickle.load(open(default_args['tss_path'], "rb"))
 
     distances, indices, vectors = loadtss.find_index(2124)
 
