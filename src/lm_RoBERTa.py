@@ -108,13 +108,13 @@ import pickle
 # We pick out an random inital pool with uniform probability in a temporary directory of n% of the data.
 
 tss = pickle.load(open(default_args['tss_path'], "r"))
-# all_sents = open(default_args['train_data_path'], "r").readlines()
 train_data_df = pd.read_csv(default_args['train_data_path'])
 
 INITIAL_SAMPLE = 10000
 SAMPLE_SIZE = 500
 encoder_max_length = 512
 batch_size = 1
+pool = train_data_df['line_idx'].to_numpy()
 
 def process_data_to_model_inputs(batch):
     # tokenize the inputs and labels
@@ -128,41 +128,15 @@ def process_data_to_model_inputs(batch):
     batch["attention_mask"] = inputs.attention_mask
     return batch
 
-def sample_pool_random(all_sentences, n):    
-    selected = random.sample(list(range(len(all_sentences))), n)
-
-    sent_array = np.array(all_sentences)
-    corresponding_sents = list(sent_array[selected])
-
-    new_all = list(np.delete(sent_array, selected))
-    
-    return selected, corresponding_sents, new_all
-
-def sample_pool_from_selected(all_sentences, selected): 
-    sent_array = np.array(all_sentences)
-    corresponding_sents = list(sent_array[selected])
-
-    new_all = list(np.delete(sent_array, selected))
-    
-    return corresponding_sents, new_all
-
-initial_indices, initial_sents, all_sents = sample_pool_random(all_sents, INITIAL_SAMPLE)
-print(f"Got {initial_indices[0]} which is {initial_sents[0]}")
+initial_indices = np.random.choice(pool, INITIAL_SAMPLE)
+pool = np.delete(pool, initial_indices)
 tss.remove_from_space(initial_indices)
-
-# TRAININGDIR = "../dataset/trainingsets/"
-# training_filename = "../dataset/trainingsets/0.txt"
-# training_file = open(training_filename, "w")
-# for x in initial_sents:
-#     trainingfile.write(x)
-# training_file.close()
-
 sampled_train_data_df = train_data_df.loc[initial_indices,:]
 
 iteration = 0
-current_sents = initial_sents
+save_dir = "../ckpt/ABRoBERTa_10M_10ep/"
 convergence_criterion_not_met = True
-while convergence_criterion_not_met: # another miracle        
+while convergence_criterion_not_met: # another miracle
     # dataset = LineByLineTextDataset(
     #     tokenizer=tokenizer,
     #     file_path=training_filename, #REPLACE WITH CURRENT TRAINING SET
@@ -174,15 +148,14 @@ while convergence_criterion_not_met: # another miracle
     train_set = dataset.map(
         process_data_to_model_inputs,
         batched=True,
-        batch_size=batch_size,
         remove_columns=['Unnamed: 0', 'line_idx', 'token'],
     )
 
     training_args = TrainingArguments(
         output_dir="../ckpt/ABRoBERTa_10M_10ep",
         overwrite_output_dir=True,
-        num_train_epochs=10,
-        per_device_train_batch_size=8,
+        num_train_epochs=1,
+        per_device_train_batch_size=batch_size,
         save_steps=10_000,
         save_total_limit=2,
         prediction_loss_only=True,
@@ -192,16 +165,16 @@ while convergence_criterion_not_met: # another miracle
         model=model,
         args=training_args,
         data_collator=data_collator,
-        train_dataset=dataset,
+        train_dataset=train_set,
     )
 
     # ### Start training
     trainer.train()
 
     # #### 🎉 Save final model (+ tokenizer + config) to disk
-    trainer.save_model("../ckpt/ABRoBERTa_10M_10ep/final") # TODO: rename checkpoints per iteration
-
-    # TODO:
+    save_path = os.path.join("../ckpt/ABRoBERTa_10M_10ep/", str(iteration))
+    trainer.save_model(save_path) # TODO: rename checkpoints per iteration
+    
     # Assume a miracle where we know the specific index of the highest perplexity sentence from
     # the training set.    
     # That miracle we will call most_confused_index
@@ -237,15 +210,11 @@ while convergence_criterion_not_met: # another miracle
         print('most_confused_index', most_confused_index)
 
     _, indices, _ = tss.find_index(most_confused_index, k=500) #TODO: k is a hyperparameter
+    pool = np.delete(pool, indices)
     # Take things out of the space.
     tss.remove_from_space(indices)
-    additional_sents, all_sents = sample_pool_from_selected(all_sents, indices)
-    
-    iteration += 1
-    current_sents += additional_sents
     sampled_train_data_df = train_data_df.loc[indices,:]
     
+    iteration += 1
     if iteration > 5:
         convergence_criterion_not_met = False
-
-    
