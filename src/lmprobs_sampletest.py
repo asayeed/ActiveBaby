@@ -33,15 +33,18 @@ tss = pickle.load(open(default_args['tss_path'], "rb"))
 
 all_sents = open(default_args['train_data_path'], "r").readlines()
 
+
 import random
 
 def sample_pool_random(all_sentences, n):
     selected = random.sample(list(range(len(all_sentences))), n)
 
     sent_array = np.array(all_sentences)
+    print(f'allsents len1 {len(all_sentences)}')
     corresponding_sents = list(sent_array[selected])
-
+    
     new_all = list(np.delete(sent_array, selected))
+    print(f'allsents len2 {len(all_sentences)}')
     
     return selected, corresponding_sents, new_all
 
@@ -60,9 +63,9 @@ initial_indices, initial_sents, all_sents = sample_pool_random(all_sents, INITIA
 print(f"Got {initial_indices[0]} which is {initial_sents[0]}")
 tss.remove_from_space(initial_indices)
 
-TRAININGDIR = "../dataset/trainingsets/"
-training_filename = "../dataset/trainingsets/0.txt"
+TRAININGDIR = "../datasets/trainingsets/"
+training_filename = "../datasets/trainingsets/0.txt"
 training_file = open(training_filename, "w")
 for x in initial_sents:
-    trainingfile.write(x)
+    training_file.write(x)
 training_file.close()
