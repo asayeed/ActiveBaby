@@ -4,10 +4,11 @@ default_args = {
     'log_tag': 'global', # Brief descriptive tag for logdir readibility
     'feature_names': ['swin_base'],
     
-    'train_data_path': '/root/xhong/babylm/dataset/babylm_10M_sent_tokens.txt', 
+#     'train_data_path': '/root/xhong/babylm/dataset/babylm_10M_sent_tokens.txt', 
+    'train_data_path': '/root/xhong/babylm/dataset/babylm_10M.csv', 
     'val_data_path': '/root/xhong/babylm/dataset',
     'test_data_path': '/root/xhong/babylm/dataset',
     
-    'tss_path': 'tss.pkl',
+    'tss_path': 'tss1.pkl',
     'tokenizer_path': '/root/xhong/babylm/tokenizer/ABByteLevelBPE', 
 }
