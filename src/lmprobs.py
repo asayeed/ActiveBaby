@@ -32,6 +32,9 @@ class AbstractSurprisalSpace:
         self.nnfinder = KDTree(self.surprisalvecs)
         
     def find_index(self, vec_index, k=5):
+        size = self.nnfinder.data.shape[0]
+        if k > size:
+            return [], [], tuple()
         dists, indices = self.nnfinder.query(self.surprisalvecs[vec_index].reshape(1,-1),
                                       k=k)
 
@@ -39,9 +42,8 @@ class AbstractSurprisalSpace:
     
     # Remove from the stored vectors
     def remove_from_space(self, to_remove):
-        print(f'len {len(self.currentsurprisalvecs)}')
+        #print(f'len {len(self.currentsurprisalvecs)}')
         for index in sorted(to_remove, reverse=True):
-            #print(f'removing: {index}')
             del self.currentsurprisalvecs[index] #make sure this behaves as a reference
     
         self.nnfinder = KDTree(self.currentsurprisalvecs)
@@ -72,7 +74,6 @@ if __name__ == "__main__":
     itemfile = open(default_args['train_data_path'], "r")
     tokens = [x[:-1].split(",") for x in itemfile]
     print(f'orig tokens {len(tokens)}')
-    #sys.exit(0)
     #print(tokens[:5000])
 
 
