@@ -18,7 +18,7 @@ import nltk
 import pandas as pd
 from tqdm import tqdm
 import numpy as np
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import torch
 import transformers
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
@@ -37,8 +37,8 @@ from lmprobs import TrigramSurprisalSpace
 # 
 # As the model is BERT-like, we’ll train it on a task of *Masked language modeling*, i.e. the predict how to fill arbitrary tokens that we randomly mask in the dataset. This is taken care of by the example script.
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-device = "cuda:0"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+device = "cuda"
 
 # ### We'll define the following config for the model
 from transformers import RobertaConfig
@@ -100,20 +100,22 @@ data_collator = DataCollatorForLanguageModeling(
     tokenizer=tokenizer, mlm=True, mlm_probability=0.15
 )
 
-# ### Finally, we are all set to initialize our Trainer
-from transformers import Trainer, TrainingArguments
 
-from lmprobs import TrigramSurprisalSpace
-import pickle
+
+# ### Finally, we are all set to initialize our Trainer
+
 # We pick out an random inital pool with uniform probability in a temporary directory of n% of the data.
 
-tss = pickle.load(open(default_args['tss_path'], "r"))
-train_data_df = pd.read_csv(default_args['train_data_path'])
+tss = pickle.load(open(default_args['tss_path'], "rb"))
 
-INITIAL_SAMPLE = 10000
-SAMPLE_SIZE = 500
+train_data_df = pd.read_csv("/root/xhong/babylm/dataset/babylm_10M.csv")
+
+INITIAL_SAMPLE = 100000
+SAMPLE_SIZE = 50000
+MAX_ITERATION = 22
 encoder_max_length = 512
-batch_size = 1
+batch_size = 64
+
 pool = train_data_df['line_idx'].to_numpy()
 
 def process_data_to_model_inputs(batch):
@@ -124,8 +126,10 @@ def process_data_to_model_inputs(batch):
         truncation=True,
         max_length=encoder_max_length,
     )
+
     batch["input_ids"] = inputs.input_ids
     batch["attention_mask"] = inputs.attention_mask
+
     return batch
 
 initial_indices = np.random.choice(pool, INITIAL_SAMPLE)
@@ -134,7 +138,7 @@ tss.remove_from_space(initial_indices)
 sampled_train_data_df = train_data_df.loc[initial_indices,:]
 
 iteration = 0
-save_dir = "../ckpt/ABRoBERTa_10M_10ep/"
+output_dir = "../ckpt/ABRoBERTa_10M_20iter_BS64/"
 convergence_criterion_not_met = True
 while convergence_criterion_not_met: # another miracle
     # dataset = LineByLineTextDataset(
@@ -148,11 +152,12 @@ while convergence_criterion_not_met: # another miracle
     train_set = dataset.map(
         process_data_to_model_inputs,
         batched=True,
+        batch_size=batch_size,
         remove_columns=['Unnamed: 0', 'line_idx', 'token'],
     )
 
     training_args = TrainingArguments(
-        output_dir="../ckpt/ABRoBERTa_10M_10ep",
+        output_dir=output_dir,
         overwrite_output_dir=True,
         num_train_epochs=1,
         per_device_train_batch_size=batch_size,
@@ -172,7 +177,7 @@ while convergence_criterion_not_met: # another miracle
     trainer.train()
 
     # #### 🎉 Save final model (+ tokenizer + config) to disk
-    save_path = os.path.join("../ckpt/ABRoBERTa_10M_10ep/", str(iteration))
+    save_path = os.path.join(output_dir, str(iteration))
     trainer.save_model(save_path) # TODO: rename checkpoints per iteration
     
     # Assume a miracle where we know the specific index of the highest perplexity sentence from
@@ -209,12 +214,15 @@ while convergence_criterion_not_met: # another miracle
         
         print('most_confused_index', most_confused_index)
 
-    _, indices, _ = tss.find_index(most_confused_index, k=500) #TODO: k is a hyperparameter
+    _, indices, _ = tss.find_index(most_confused_index, k=SAMPLE_SIZE) #TODO: k is a hyperparameter
     pool = np.delete(pool, indices)
     # Take things out of the space.
     tss.remove_from_space(indices)
     sampled_train_data_df = train_data_df.loc[indices,:]
     
     iteration += 1
-    if iteration > 5:
+    if iteration > MAX_ITERATION or pool.size == 0:
         convergence_criterion_not_met = False
+
+
+    
