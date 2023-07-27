@@ -100,23 +100,24 @@ data_collator = DataCollatorForLanguageModeling(
     tokenizer=tokenizer, mlm=True, mlm_probability=0.15
 )
 
-
-
-# ### Finally, we are all set to initialize our Trainer
-
 # We pick out an random inital pool with uniform probability in a temporary directory of n% of the data.
 
-tss = pickle.load(open(default_args['tss_path'], "rb"))
-
-train_data_df = pd.read_csv("/root/xhong/babylm/dataset/babylm_10M.csv")
-
+EPOCH = 2
 INITIAL_SAMPLE = 100000
-SAMPLE_SIZE = 50000
-MAX_ITERATION = 22
+TSS_SAMPLE_SIZE = 50000
+SAMPLE_PER_ITER = 50000
 encoder_max_length = 512
 batch_size = 64
+output_dir = "../ckpt/ABRoBERTa_10M_BS64_50K_EP2"
 
+tss = pickle.load(open(default_args['tss_path'], "rb"))
+train_data_df = pd.read_csv("/root/xhong/babylm/dataset/babylm_10M.csv")
+dev_data_df = pd.read_csv("/root/xhong/babylm/dataset/babylm_10M_dev.csv")
+test_data_df = pd.read_csv("/root/xhong/babylm/dataset/babylm_10M_test.csv")
+# (1180291, )
 pool = train_data_df['line_idx'].to_numpy()
+
+max_iteration = float(train_data_df.shape[0] - INITIAL_SAMPLE) / SAMPLE_PER_ITER
 
 def process_data_to_model_inputs(batch):
     # tokenize the inputs and labels
@@ -138,7 +139,6 @@ tss.remove_from_space(initial_indices)
 sampled_train_data_df = train_data_df.loc[initial_indices,:]
 
 iteration = 0
-output_dir = "../ckpt/ABRoBERTa_10M_20iter_BS64/"
 convergence_criterion_not_met = True
 while convergence_criterion_not_met: # another miracle
     # dataset = LineByLineTextDataset(
@@ -147,9 +147,16 @@ while convergence_criterion_not_met: # another miracle
     #     block_size=512,
     # )
     dataset = Dataset.from_pandas(sampled_train_data_df)
+    dev_dataset = Dataset.from_pandas(dev_data_df)
     
-    # map train data
+    # map data
     train_set = dataset.map(
+        process_data_to_model_inputs,
+        batched=True,
+        batch_size=batch_size,
+        remove_columns=['Unnamed: 0', 'line_idx', 'token'],
+    )
+    dev_set = dev_dataset.map(
         process_data_to_model_inputs,
         batched=True,
         batch_size=batch_size,
@@ -159,18 +166,25 @@ while convergence_criterion_not_met: # another miracle
     training_args = TrainingArguments(
         output_dir=output_dir,
         overwrite_output_dir=True,
-        num_train_epochs=1,
+        evaluation_strategy='epoch',
         per_device_train_batch_size=batch_size,
-        save_steps=10_000,
+        per_device_eval_batch_size=batch_size*2,
+        
+        num_train_epochs=EPOCH,
+#         save_steps=10_000,
         save_total_limit=2,
         prediction_loss_only=True,
+        dataloader_num_workers=1,
+        run_name=output_dir.split('/')[-1]
     )
-
+    
+    # ### Finally, we are all set to initialize our Trainer
     trainer = Trainer(
         model=model,
         args=training_args,
         data_collator=data_collator,
         train_dataset=train_set,
+        eval_dataset=dev_set,
     )
 
     # ### Start training
@@ -185,7 +199,7 @@ while convergence_criterion_not_met: # another miracle
     # That miracle we will call most_confused_index
     # I.e., for every sentence in the training set, we get the perplexity according to the trained model.
     # find the index of the maximum.
-    sampled_indices = np.random.choice(len(train_data_df), SAMPLE_SIZE)
+    sampled_indices = np.random.choice(len(train_data_df), TSS_SAMPLE_SIZE)
     surprisal_by_group = []
     with torch.no_grad():
         for idx in tqdm(sampled_indices):
@@ -214,14 +228,14 @@ while convergence_criterion_not_met: # another miracle
         
         print('most_confused_index', most_confused_index)
 
-    _, indices, _ = tss.find_index(most_confused_index, k=SAMPLE_SIZE) #TODO: k is a hyperparameter
+    _, indices, _ = tss.find_index(most_confused_index, k=SAMPLE_PER_ITER) #TODO: k is a hyperparameter
     pool = np.delete(pool, indices)
     # Take things out of the space.
     tss.remove_from_space(indices)
     sampled_train_data_df = train_data_df.loc[indices,:]
     
     iteration += 1
-    if iteration > MAX_ITERATION or pool.size == 0:
+    if iteration > max_iteration or pool.size == 0:
         convergence_criterion_not_met = False
 
 
