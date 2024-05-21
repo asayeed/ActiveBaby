@@ -1,46 +1,34 @@
 # README
 
-# ActiveBaby
+## 2024-05-21
 
-Repo for BabyLM challenge
-
-## step by step process
-
-### BASELINE
-
-1. RoBERTa over entire corpus.
-
-2. Longformer over entire corpus.
-
-3. Evaluation metrics.
-
-### FANCIER
-
-1. RoBERTa over entire corpus.
-
-2. Trigram (?) surprisals over entire corpus.
-
-2.1 Construct/rescale surprisals into surprisal vectors (SurprisalSpace)
-
-- - via some external HMM tool (like hmmlearn)
-
-3. Split into Initial and Pool
-
-4. Longformer over Initial
-
-5. Per-sentence perplexity over Initial.
-
-6. top-k perplexity sentences (Centroids)
-
-7. kNN in SurprisalSpace of Pool -> add to Initial
-
-8. Goto 2.
-
-9. Evaluation metrics.
+- Sharid: run the elc-bert on merl
+- Xudong: run our system with pre-processing from elc-bert 
+- Asad: figure out how to make animacy work 
 
 
-### Monitor of training process
-https://wandb.ai/tony-xudong-hong/huggingface/runs/v9l8f6mg/overview?workspace=user-tony-xudong-hong
+heroic bash/R command line "cat *.dev | shuf -n 30000 | while read -r line; do echo $line | wc -w; done | echo "f <- (c(`paste -s -d, - `)); c(mean(f), median(f), sd(f), summary(f))" | r -p"
+
+mean 8.96 median 5 stdev 17 max 530
+
+
+
+## 2024-05-07
+
+- Start with Charpentier & Samuel but with some curriculum learning 
+- Reproduce official results (same data, same hyperparameters, etc) 
+	- fine-tuning
+	- external "easy" test 
+- ACLM 
+	- reduce vocabulary size
+	- sentence vector of size 7 can be smarter
+		- optimize the size as hyperparameter
+		- change representation to something smarter than just a resize
+		- bin the sentences so we have different models for different length classes 
+	- update the semantic space, it's not currently re-evaluated after the each set of sentences is taken out
+
+
+
 
 
 ## Timeline
