@@ -7,7 +7,7 @@
 - Asad: figure out how to make animacy work 
 
 
-`heroic bash/R command line "cat *.dev | shuf -n 30000 | while read -r line; do echo $line | wc -w; done | echo "f <- (c(``paste -s -d, - ``)); c(mean(f), median(f), sd(f), summary(f))" | r -p"`
+```heroic bash/R command line "cat *.dev | shuf -n 30000 | while read -r line; do echo $line | wc -w; done | echo "f <- (c(`paste -s -d, - `)); c(mean(f), median(f), sd(f), summary(f))" | r -p"```
 
 mean 8.96 median 5 stdev 17 max 530
 
