@@ -33,10 +33,10 @@ mean 8.96 median 5 stdev 17 max 530
 
 ## Timeline
 
-March 30 2024: Training data released
-April 30 2024: Evaluation pipeline released
-September 13 2024: Results due
-September 20 2024: Papers due
-October 8 2024: Peer review begins
-October 30 2024: Peer review ends, acceptances and leaderboard released
-Late 2024: Presentation of workshop at ML/NLP venue 
+March 30 2024: Training data released  
+April 30 2024: Evaluation pipeline released  
+September 13 2024: Results due  
+September 20 2024: Papers due  
+October 8 2024: Peer review begins  
+October 30 2024: Peer review ends, acceptances and leaderboard released  
+Late 2024: Presentation of workshop at ML/NLP venue   
